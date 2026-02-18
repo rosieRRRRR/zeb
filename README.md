@@ -1,14 +1,15 @@
-# ZEB — Zero-Exposure Broadcast
+# ZEB -- Zero Exposure Broadcast
 
-**An Open Standard for Execution-Gated Transactions, with a Bitcoin Broadcast Profile**
+**An Open Standard for Execution-Gated Transactions and Bitcoin Broadcast Discipline**
 
-* **Specification Version:** 1.2.0
-* **Status:** Public beta
+* **Specification Version:** 1.3.0
+* **Status:** Implementation Ready
 * **Date:** 2026
 * **Author:** rosiea
-* **Contact:** PQRosie@proton.me
-* **Licence:** Apache License 2.0  — Copyright 2026 rosiea
+* **Contact:** [PQRosie@proton.me](mailto:PQRosie@proton.me)
+* **Licence:** Apache License 2.0 — Copyright 2026 rosiea
 * **Scope:** Bitcoin current consensus and policy. No new opcodes. No consensus changes.
+* **PQ Ecosystem:** CORE — The PQ Ecosystem is a post-quantum security framework built on deterministic enforcement, fail-closed semantics, and refusal-driven authority. Bitcoin is the reference deployment. It is not the scope.
 
 
 This repository contains two specifications:
@@ -23,19 +24,26 @@ ZET is not Bitcoin-specific. ZEB is Bitcoin-specific.
 
 ## Summary
 
-ZET and ZEB define a composable execution model that removes the execution gap present in most transaction systems.
+ZEB defines a broadcast boundary that separates authorisation from transaction broadcast.
 
-The execution gap is the period in which executable artefacts exist before authorization and enforcement are complete. During this window, adversaries can react to visible execution material, replay decisions, substitute transactions, or exploit ordering and timing effects. This pattern appears across blockchains, cross-chain bridges, payment systems, and settlement infrastructure.
+It ensures that broadcast occurs only after external approval and provides observation and exposure-detection mechanisms for transaction workflows.
 
-ZET (Zero-Exposure Transactions) eliminates the execution gap by separating intent formation from execution and enforcing a single atomic boundary: execute or refuse. Intents are explicitly non-authoritative and safe to observe. No executable artefact exists until a valid EnforcementOutcome is produced by PQSEC and verified at the execution boundary. Execution is atomic and fail-closed, with no partial states.
+ZEB does not decide whether an action is allowed. Broadcast proceeds only after PQSEC has produced an approval outcome.
 
-ZEB (Zero-Exposure Broadcast) is the Bitcoin execution profile of ZET. It implements broadcast and observation mechanics for Bitcoin transactions, including submission modes, exposure detection, confirmation tracking, and deterministic failure handling. ZEB does not grant authority, construct spends, or evaluate policy. It executes only after PQSEC authorization and only through the ZET execution boundary.
+---
 
-When composed with PQEH execution-gated spend construction, ZEB enforces S1 revelation discipline so that critical witness material is withheld until enforcement approval and injected only immediately prior to submission. This prevents pre-construction and mempool reaction attacks while remaining compatible with current Bitcoin consensus and relay policy.
+## ZET Packaging Statement (Normative)
 
-For cross-domain execution, the ZET bridge annex defines a lock-attest-release cycle. All phases are bound to the same session_id, exporter_hash, and decision_id to prevent intent substitution and replay across domains. Optimistic trust assumptions are explicitly disallowed.
+ZEB is the primary execution boundary specification.
 
-ZET and ZEB grant no authority in isolation. All authority derives from predicate satisfaction under PQSEC. Execution proceeds only when all required predicates are satisfied and is otherwise refused deterministically.
+ZET (Zero-Exposure Transaction) concepts are treated as Part I of ZEB and do not form a separate authority surface. ZET patterns describe execution techniques; ZEB defines the boundary discipline.
+
+**Implications:**
+
+1. ZET is not a standalone specification
+2. ZET patterns are execution mechanics, not authority sources
+3. All authority decisions originate in PQSEC
+4. ZEB implements the Bitcoin-specific execution profile
 
 ---
 
@@ -49,18 +57,17 @@ The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RE
 
 | Specification | Minimum Version | Purpose |
 |---------------|-----------------|---------|
-| PQSEC | ≥ 2.0.1 | EnforcementOutcome production and consumption |
-| Epoch Clock | ≥ 2.1.1 | Tick-based deadline enforcement |
-| PQEH | ≥ 2.1.1 | S1/S2 revelation pattern (when claiming zero-exposure) |
-| PQSF | ≥ 2.0.2 | Canonical encoding (when session binding is used) |
+| PQSEC | ≥ 2.0.3 | EnforcementOutcome production and consumption |
+| Epoch Clock | ≥ 2.1.0 | Tick-based deadline enforcement |
+| PQSF | ≥ 2.0.3 | Canonical encoding (when session binding is used) |
 
 ZET is rail-agnostic and has no Bitcoin-specific dependencies.
 
-ZEB requires Bitcoin Core ≥ 0.21.0 or equivalent for Taproot support when used with PQEH Taproot patterns.
+Hashing note: ZEB defines no independent hashing constructions. Any hash values used or consumed by ZEB (including `intent_hash`-bound execution artefacts) follow PQSF §9 Tier 2 (SHAKE256-256, 32 bytes) unless a Bitcoin Script context requires SHA-256.
 
 ---
 
-## Part I — ZET: Zero-Exposure Transactions (Execution Boundary)
+## Part I -- ZET: Zero-Exposure Transactions (Execution Boundary)
 
 ### Summary
 
@@ -86,7 +93,7 @@ ZET defines:
 - consumption of external enforcement outcomes
 - replay-safe execution outcome binding
 
-ZET does not define custody authority, predicate evaluation, time issuance, runtime attestation, broadcast mechanics, settlement semantics, or cryptographic primitives.
+ZET does not define custody authority, predicate evaluation, time issuance, broadcast mechanics, settlement semantics, or cryptographic primitives. Runtime attestation is handled exclusively by PQSEC.
 
 ---
 
@@ -136,19 +143,19 @@ ZET remains rail-agnostic. Bitcoin execution is a profile, not the core.
 
 ---
 
-## Part II — ZEB: Zero-Exposure Broadcast (Bitcoin Profile)
+## Part II -- ZEB: Zero-Exposure Execution Boundary (Bitcoin Profile)
 
 ### Summary
 
 ZEB provides Bitcoin-specific broadcast discipline and exposure detection.
 
-ZEB enforces that broadcast occurs only after PQSEC authorization, monitors observation sources for deterministic exposure detection, and tracks confirmation status.
+ZEB gates broadcast on a valid PQSEC EnforcementOutcome, monitors observation sources for deterministic exposure detection, and tracks confirmation status.
 
 ZEB provides zero security benefit without execution-gated spend construction.  
 Zero-exposure properties arise only from the combination of:
 - ZET execution boundary
 - ZEB broadcast and observation
-- PQEH execution-gated spend construction
+- SEAL encrypted submission
 
 ZEB provides broadcast mechanics and observation only.  
 No authority. No spend construction. No enforcement.
@@ -163,7 +170,7 @@ ZEB provides broadcast discipline and observation mechanics only. It does not co
 
 Any zero-exposure or reduced-exposure property is conditional on correct composition with:
 
-* PQEH execution-gated spend construction,
+* SEAL encrypted submission,
 * strict attempt-scoped burn discipline, and
 * correct enforcement-to-broadcast sequencing.
 
@@ -197,17 +204,6 @@ ZEB MUST NOT be represented as replacement-proof or censorship-resistant.
 
 ---
 
-### S1 Revelation Discipline (PQEH Integration)
-
-For PQEH execution-gated spends, ZEB MUST ensure:
-
-1. A gated transaction template is prepared without S1.  
-2. EnforcementOutcome verification completes before S1 is revealed.  
-3. S1 is injected into the witness only immediately prior to submission.  
-4. No submission MAY occur with S1 present before enforcement approval.  
-
----
-
 ### Burn Requirement
 
 If a ZEB execution attempt fails due to:
@@ -233,12 +229,22 @@ ZEB does not protect against pre-compromised keys, miner-colluding adversaries, 
 
 ## Error Codes (Normative)
 
-- `E_OUTCOME_MISSING` – No EnforcementOutcome provided  
-- `E_OUTCOME_REPLAYED` – decision_id already used  
-- `E_REFUSED` – PQSEC refused authorization  
-- `E_BURNED_INTENT` – intent_hash marked as burned  
-- `E_EXPOSURE_DETECTED` – transaction observed by quorum  
-- `E_CONFIRMATION_TIMEOUT` – deadline exceeded before confirmation  
+- `E_OUTCOME_MISSING` -- No EnforcementOutcome provided  
+- `E_OUTCOME_REPLAYED` -- decision_id already used  
+- `E_DENIED` -- PQSEC refused authorization  
+- `E_BURNED_INTENT` -- intent_hash marked as burned  
+- `E_EXPOSURE_DETECTED` -- transaction observed by quorum  
+- `E_CONFIRMATION_TIMEOUT` -- deadline exceeded before confirmation  
+
+---
+
+## Execution Recovery Semantics (Normative)
+
+When a ZEB execution attempt reaches a terminal state (any failure, exposure detection, confirmation timeout, or enforcement invalidation), the execution attempt is permanently ended. No automatic retry, implicit resumption, or unattended recovery is permitted.
+
+"Explicit authorisation required for recovery" means: a fresh PQSEC ALLOW decision for either a new intent (new intent_hash, new decision_id) or a recovery-class operation evaluated under the same enforcement rules as any other Authoritative operation. The original EnforcementOutcome and decision_id MUST NOT be reused. The original intent_hash is burned and MUST NOT be resubmitted.
+
+Implementations MUST NOT implement automatic retry logic, timer-based re-execution, or silent fallback to alternative broadcast methods. Recovery is a deliberate human or policy decision surfaced through the standard BPC/PQSEC pipeline.
 
 ---
 
@@ -267,29 +273,29 @@ During network partitions:
 
 1. ZET Conformant  
 2. ZEB Conformant  
-3. Bitcoin Zero-Exposure Execution Conformant (ZET + ZEB + PQEH + PQSEC)
+3. Bitcoin Zero-Exposure Execution Conformant (ZET + ZEB + SEAL + PQSEC)
 
 ---
 
-# Annex A — ZET Execution Boundary Interface (Normative)
+## Annex A -- ZET Execution Boundary Interface (Normative)
 
 ## A.1 EnforcementOutcome
 
+**Note (Normative):** PQSEC §15.1 is the authoritative definition of EnforcementOutcome. This Annex A.1 dataclass is illustrative only and MUST NOT be treated as a normative schema. Implementations MUST parse and verify EnforcementOutcome using PQSEC rules and canonical bytes.
+
 ```python
 from dataclasses import dataclass
-from typing import Optional
 
 @dataclass(frozen=True)
 class EnforcementOutcome:
-    allowed: bool
+    decision: str          # "ALLOW" / "DENY" / "FAIL_CLOSED_LOCKED"
     decision_id: str
     intent_hash: bytes
-    session_id: str
+    session_id: bytes
     exporter_hash: bytes
     issued_tick: int
     expiry_tick: int
-    error_code: Optional[str] = None
-````
+```
 
 ---
 
@@ -329,21 +335,35 @@ def zet_execute(intent: dict, outcome: EnforcementOutcome, rail_executor) -> Exe
             error_code="E_OUTCOME_REPLAYED"
         )
 
-    if not outcome.allowed:
+    if outcome.decision != "ALLOW":
         _seen_decisions.add(outcome.decision_id)
         return ExecutionResult(
             status="REFUSED",
             execution_id=outcome.decision_id,
-            error_code=outcome.error_code or "E_REFUSED"
+            error_code="E_DENIED"
         )
 
     _seen_decisions.add(outcome.decision_id)
     return rail_executor.execute(intent, outcome)
 ```
 
+### A.3A Replay Guard Durability (Normative)
+
+Implementations MUST ensure the `_seen_decisions` store is:
+
+1. persistent across restarts,
+2. thread-safe (or otherwise concurrency-safe), and
+3. scoped to the local signing/execution domain.
+
+If `_seen_decisions` state is lost, corrupted, or cannot be proven intact, the implementation MUST fail closed for Authoritative execution by returning `E_OUTCOME_REPLAYED` (or `E_FAIL_CLOSED_LOCKED` where the policy requires lockout) until replay state is recovered (for example by restoring from a trusted backup).
+
+Replay records MAY be pruned after the corresponding EnforcementOutcome `expiry_tick` has passed.
+
+A `decision_id` is considered consumed once `_seen_decisions` is updated, regardless of whether the rail executor succeeds or fails. Retries MUST require a new EnforcementOutcome with a new `decision_id`.
+
 ---
 
-# Annex B — ZEB Bitcoin Rail Executor (Normative)
+## Annex B -- ZEB Bitcoin Rail Executor (Normative)
 
 ## B.1 Executor Interface
 
@@ -379,7 +399,7 @@ def new_attempt(intent_hash: bytes, tick: int) -> AttemptIdentity:
 
 ---
 
-# Annex C — ZEB Submission Plane (Reference)
+## Annex C -- ZEB Submission Plane (Reference)
 
 ```python
 class Submitter:
@@ -390,9 +410,11 @@ class Submitter:
         raise NotImplementedError
 ```
 
+**SEAL Integration:** When SEAL is deployed, ZEB's `submit_restricted()` delegates to SEAL's encrypted submission protocol. The `rawtx_hex` parameter is encrypted by SEAL before transmission to the Submission Endpoint. ZEB's submission plane is an abstraction; SEAL provides the concrete restricted-mode implementation. ZEB's `submit_public()` bypasses SEAL entirely (standard Bitcoin broadcast).
+
 ---
 
-# Annex D — Observation Plane (Normative)
+## Annex D -- Observation Plane (Normative)
 
 ```python
 from typing import Optional
@@ -407,7 +429,7 @@ class Observer:
 
 ---
 
-# Annex E — Exposure Detection (Normative)
+## Annex E -- Exposure Detection (Normative)
 
 ```python
 def exposure_detected(mode: str, mempool_hits: int, observer_quorum: int) -> bool:
@@ -418,7 +440,11 @@ def exposure_detected(mode: str, mempool_hits: int, observer_quorum: int) -> boo
 
 ---
 
-# Annex F — Tick-Based Deadline Enforcement (Normative)
+## Annex F -- Tick-Based Deadline Enforcement (Normative)
+
+`deadline_tick` MUST be less than or equal to `outcome.expiry_tick`.
+
+Policy MAY set `deadline_tick` lower than `outcome.expiry_tick`, but MUST NOT set it higher.
 
 ```python
 def deadline_exceeded(current_tick: int, deadline_tick: int) -> bool:
@@ -427,7 +453,7 @@ def deadline_exceeded(current_tick: int, deadline_tick: int) -> bool:
 
 ---
 
-# Annex G — Burn Discipline (Normative)
+## Annex G -- Burn Discipline (Normative)
 
 ```python
 burned_intents = set()
@@ -443,7 +469,7 @@ Implementations MUST ensure the burned_intents store is persistent and thread-sa
 
 ---
 
-# Annex H — Full ZEB Execution Loop with S1 Revelation (Reference)
+## Annex H -- Full ZEB Execution Loop with S1 Revelation (Reference)
 
 ```python
 def submit_transaction(rawtx_hex: str, mode: str, submitter: Submitter, endpoints: list[str]) -> str:
@@ -473,11 +499,19 @@ def zeb_execute(
     observers: list[Observer],
     current_tick: int,
     deadline_tick: int,
+    get_current_tick,            # callable returning current verified tick
     observer_quorum: int,
     restricted_endpoints: list[str]
 ) -> ExecutionResult:
 
     attempt = new_attempt(outcome.intent_hash, outcome.issued_tick)
+
+    if deadline_tick > outcome.expiry_tick:
+        return ExecutionResult(
+            status="REFUSED",
+            execution_id=attempt.attempt_id,
+            error_code="E_OUTCOME_MISSING"
+        )
 
     if is_burned(outcome.intent_hash):
         return ExecutionResult(
@@ -486,11 +520,11 @@ def zeb_execute(
             error_code="E_BURNED_INTENT"
         )
 
-    if not outcome.allowed:
+    if outcome.decision != "ALLOW":
         return ExecutionResult(
             status="REFUSED",
             execution_id=attempt.attempt_id,
-            error_code=outcome.error_code or "E_REFUSED"
+            error_code="E_DENIED"
         )
 
     psbt_final = reveal_s1(psbt_template)
@@ -499,6 +533,7 @@ def zeb_execute(
     txid = submit_transaction(rawtx_hex, mode, submitter, restricted_endpoints)
 
     while True:
+        current_tick = get_current_tick()  # refresh each iteration
         obs = observe(txid, observers)
 
         if obs["confirmed_height"] is not None:
@@ -525,11 +560,13 @@ def zeb_execute(
             )
 ```
 
-Reference loops are illustrative. Production implementations SHOULD use non-blocking waits and refresh current_tick from a verified Epoch Clock source.
+Reference loops are illustrative. Production implementations MUST refresh the current tick from a verified Epoch Clock source on each observation cycle. The `get_current_tick` parameter is a callable that returns the latest verified tick.
+
+`deadline_tick` MUST be less than or equal to `outcome.expiry_tick`. RECOMMENDED: `deadline_tick = outcome.expiry_tick`. If `deadline_tick > outcome.expiry_tick`, the implementation MUST treat the outcome as expired and return `E_OUTCOME_MISSING` (or `E_DENIED` if the consuming system surfaces expiry as a denial reason).
 
 ---
 
-# Annex I — ZET Bridge and Cross-Domain Execution (Normative)
+## Annex I -- ZET Bridge and Cross-Domain Execution (Normative)
 
 ## I.1 Scope
 
@@ -549,11 +586,19 @@ BridgeIntent = {
   "expiry_tick": "uint",
   "suite_profile": "tstr",
   "signature": "bstr",
-  "session_id": "tstr",
+  "session_id": "bstr(16)",
   "exporter_hash": "bstr",
   "decision_id": "tstr"
 }
 ```
+
+### I.2A BridgeIntent Signature Preimage (Normative)
+
+BridgeIntent MUST be deterministic CBOR.
+
+`signature` MUST be computed over the deterministic CBOR encoding of BridgeIntent with the `signature` field omitted.
+
+Verification MUST reconstruct identical canonical bytes and verify the signature under the declared `suite_profile`. Unknown `suite_profile` values MUST cause rejection.
 
 ---
 
@@ -583,41 +628,107 @@ BridgeIntent = {
 
 ---
 
-Changelog
-Version 1.2.0 (Current)
-ZET Interface Alignment: Standardized the Zero-Exposure Transaction (ZET) boundary to separate transaction intent from execution capability.
+## Annex J -- ObservationReport (Informative)
 
-Exposure Detection: Introduced a formal "exposure condition" that triggers a FAILED execution state if an unconfirmed transaction is detected in the mempool without reaching confirmation.
+### J.1 Purpose
 
-Execution Gating: Integrated the S1/S2 revelation patterns from PQEH to ensure no executable transaction exists prior to PQSEC approval.
+Observation reports summarise what was observed during transaction broadcast, providing evidence for post-broadcast analysis.
 
-Confirmation Tracking: Refined multi-phase execution rules (lock, attest, release) to ensure all phases are bound to the same session and decision IDs.
+### J.2 Receipt Type
+
+**ReceiptEnvelope.type:** `"zeb.observation_report"`
+
+**Body:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `v` | uint | Schema version |
+| `txid` | bstr (32) | Transaction ID observed |
+| `first_seen_tick` | uint | When first observed |
+| `observer_count` | uint | Number of observers |
+| `propagation_estimate` | tstr | Estimated propagation |
+| `anomalies` | array of tstr | Detected anomalies |
+
+`v` is the ObservationReport schema version. For this specification, `v` MUST be 1.
+
+### J.3 Authority Boundary
+
+Observation reports are informative only. They do NOT grant authority.
 
 ---
 
-## Acknowledgements
+## Execution Profile Evidence (Informative)
 
-ZET and ZEB execution boundary patterns build upon:
+For profiles requiring observation:
 
-* Bitcoin mempool and relay policy research
-* Front-running and MEV research
-* Atomic swap protocol designers
-* Lightning Network developers
-* RBF security researchers
+Implementations SHOULD emit an ObservationReport and make it available as evidence for PQSEC Annex AC evaluation when required by policy.
 
-The execution gap concept draws from:
+**Recommended receipt types:**
+- `zeb.observation_report`
 
-* High-frequency trading execution research
-* Payment channel commitment transaction design
-* Cross-chain bridge security analysis
+ZEB receipts are audit artefacts only and MUST NOT be treated as permission signals.
 
-The separation of intent from execution capability is informed by capability-based security models and the principle of least authority.
+---
 
-Any errors or omissions remain the responsibility of the author.
+## Receipt Integration
 
-If you find this work useful and want to support continued development:
+Implementations MAY emit ReceiptEnvelope objects as defined in PQSF Annex W.
 
-Bitcoin:
+Where a receipt asserts an enforcement decision, the receipt type MUST be one of the PQSEC Audit Receipts defined in PQSEC Annex AE.
+
+Domain receipts (observation, gate, submission, fulfilment) MUST NOT be used to replace required protocol logic and MUST be treated as audit artefacts only.
+
+Receipt presence MUST NOT imply permission. Only PQSEC evaluation determines authority.
+
+---
+
+## Changelog
+
+### Version 1.3.0
+
+**Execution Boundary Clarified**
+
+* Formalised ZET packaging statement.
+* Explicitly defined ZET as Part I of ZEB with no independent authority surface.
+* Strengthened authority boundary language across both parts.
+
+**Scope Hardening**
+
+* Added Canonical Scope and Limitation Disclaimer (1A).
+* Explicitly disclaimed censorship resistance, replacement-proof claims, and quantum immunity.
+
+**Replay Discipline Strengthened**
+
+* EnforcementOutcome structure standardised (decision vs allowed clarified).
+* Replay guard made mandatory with explicit error signalling.
+
+**Execution Discipline Formalised**
+
+* Prohibited pre-approval material injection.
+
+**Burn Semantics Clarified**
+
+* Mandatory burn discipline for exposure, timeout, and invalidation.
+* Persistent burned intent tracking required.
+
+**Bridge Execution Rules Formalised**
+
+* Lock--attest--release multi-phase rule added.
+* Explicit cross-domain binding to session_id, exporter_hash, and decision_id.
+
+**Error Codes Normalised**
+
+* Consolidated deterministic error signalling.
+* Explicit normative error code list added.
+
+**Dependency Versions Updated**
+
+* Epoch Clock minimum version increased.
+* Explicit PQSF dependency clarified for session binding.
+
+---
+
+If you find this work useful and wish to support continued development, donations are welcome:
+
+**Bitcoin:**
 bc1q380874ggwuavgldrsyqzzn9zmvvldkrs8aygkw
-
-
